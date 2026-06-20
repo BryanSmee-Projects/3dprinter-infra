@@ -7,14 +7,12 @@ metadata:
     app.kubernetes.io/name: spoolman
 spec:
   parentRefs:
-    # Attach to the cluster's shared Gateway. Adjust name/namespace/sectionName
-    # to match your environment. HTTPS is terminated by a reverse proxy in front
-    # of this Gateway, so we only attach to the HTTP listener here.
-    - name: gateway
-      namespace: gateway
-      sectionName: http
+    # HTTPS is terminated by a reverse proxy in front of this Gateway,
+    # so traffic reaching it is plain HTTP.
+    - name: main-gateway
+      namespace: traefik
   hostnames:
-    - spoolman.local
+    - spoolman.smee.ovh
   rules:
     - matches:
         - path:

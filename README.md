@@ -25,8 +25,8 @@ apps/              Kubernetes manifests for each app
 
 | File | Field | Default | Notes |
 |------|-------|---------|-------|
-| `apps/spoolman/httproute.yaml` | `parentRefs` | `gateway/gateway`, `sectionName: http` | Point at your cluster's Gateway + HTTP listener. |
-| `apps/spoolman/httproute.yaml` | `hostnames` | `spoolman.local` | Hostname the reverse proxy forwards. |
+| `apps/spoolman/httproute.yaml` | `parentRefs` | `traefik/main-gateway` | Cluster Gateway the route attaches to. |
+| `apps/spoolman/httproute.yaml` | `hostnames` | `spoolman.smee.ovh` | Hostname the reverse proxy forwards. |
 | `apps/spoolman/pvc.yaml` | `storageClassName` | cluster default | Uncomment to pin a class. |
 | `argocd/spoolman.yaml` | `source.repoURL` / `targetRevision` | `main` | Adjust if the default branch differs. |
 

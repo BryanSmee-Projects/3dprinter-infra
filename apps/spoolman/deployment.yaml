@@ -18,6 +18,7 @@ spec:
       labels:
         app.kubernetes.io/name: spoolman
     spec:
+      enableServiceLinks: false
       containers:
         - name: spoolman
           image: ghcr.io/donkie/spoolman:latest
@@ -28,6 +29,10 @@ spec:
           env:
             - name: TZ
               value: America/Los_Angeles
+            - name: SPOOLMAN_HOST
+              value: "0.0.0.0"
+            - name: SPOOLMAN_PORT
+              value: "8000"
           volumeMounts:
             - name: data
               # Do NOT change this path: it is where Spoolman stores its data.

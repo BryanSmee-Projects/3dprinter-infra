@@ -11,34 +11,23 @@ spec:
     server: https://kubernetes.default.svc
     namespace: manyfold
   sources:
-    # 1) The Manyfold app + bundled PostgreSQL and Valkey (Redis) subcharts.
+    # 1) The Manyfold app itself, via the Helm chart. Its bundled Bitnami
+    #    PostgreSQL/Valkey subcharts are DISABLED — Broadcom's Bitnami images
+    #    now only ship a subscription-gated, FIPS-hardened `latest` tag that
+    #    breaks md5 auth. We run plain official images instead (source 2).
     - repoURL: https://charts.jeffresc.dev
       chart: manyfold
       targetRevision: 1.0.3
       helm:
-        # Release name drives the templated service names below
-        # (manyfold-postgresql, manyfold-valkey-primary).
         releaseName: manyfold
         valuesObject:
           # Pin the app Service name so the HTTPRoute backend is deterministic.
           fullnameOverride: manyfold
 
-          # Bundled PostgreSQL (replaces the compose "postgres" service).
           postgresql:
-            enabled: true
-            global:
-              postgresql:
-                auth:
-                  username: manyfold
-                  database: manyfold
-                  # CHANGE ME: committed to git in plaintext. For better hygiene,
-                  # move to a Secret and use auth.existingSecret instead.
-                  password: CHANGE_ME_db_password
-
-          # Bundled Valkey / Redis (replaces the compose "redis" service).
+            enabled: false
           valkey:
-            enabled: true
-            architecture: standalone
+            enabled: false
 
           # Persistent model library (mounted at /manyfold-library in-container).
           persistence:
@@ -47,9 +36,43 @@ spec:
             # storageClass: ""  # set to pin a StorageClass
 
           env:
-            # CHANGE ME: generate with `openssl rand -hex 64`.
+            # --- Secrets (from the manyfold-secrets Secret / SealedSecret) ---
+            # `value: null` deletes the chart's default plaintext value so only
+            # the secretKeyRef remains after Helm merges.
             SECRET_KEY_BASE:
-              value: CHANGE_ME_long_random_string
+              value: null
+              valueFrom:
+                secretKeyRef:
+                  name: manyfold-secrets
+                  key: secret-key-base
+            DATABASE_PASSWORD:
+              value: null
+              valueFrom:
+                secretKeyRef:
+                  name: manyfold-secrets
+                  key: postgres-password
+            OIDC_CLIENT_SECRET:
+              valueFrom:
+                secretKeyRef:
+                  name: manyfold-secrets
+                  key: oidc-client-secret
+
+            # --- Database: point at the plain PostgreSQL from source 2 ---
+            DATABASE_ADAPTER:
+              value: postgresql
+            DATABASE_HOST:
+              value: manyfold-postgres
+            DATABASE_PORT:
+              value: "5432"
+            DATABASE_USER:
+              value: manyfold
+            DATABASE_NAME:
+              value: manyfold
+
+            # --- Cache/queue: point at the plain Redis from source 2 ---
+            REDIS_URL:
+              value: redis://manyfold-redis:6379/1
+
             # Run as uid/gid 1000, matching the compose PUID/PGID.
             PUID:
               value: "1000"
@@ -74,16 +97,15 @@ spec:
             # CHANGE ME to your real PocketID URL.
             OIDC_ISSUER:
               value: https://pocketid.smee.ovh
-            # CHANGE ME: from the OIDC client you create in PocketID.
+            # Client ID is not secret; the client SECRET comes from the Secret above.
+            # CHANGE ME to the client ID from PocketID.
             OIDC_CLIENT_ID:
               value: CHANGE_ME_oidc_client_id
-            OIDC_CLIENT_SECRET:
-              value: CHANGE_ME_oidc_client_secret
             # Register this exact redirect/callback URL in the PocketID client:
             #   https://manyfold.smee.ovh/users/auth/openid_connect/callback
             # Requested scopes are fixed by Manyfold: openid, email, profile.
 
-    # 2) Gateway API HTTPRoute (HTTP only) from this repo.
+    # 2) Plain PostgreSQL + Redis + HTTPRoute (+ your SealedSecret) from this repo.
     - repoURL: https://github.com/BryanSmee-Projects/3dprinter-infra.git
       targetRevision: main
       path: apps/manyfold

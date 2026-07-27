@@ -1,10 +1,10 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: spoolman
-  namespace: spoolman
+  name: manyfold
+  namespace: manyfold
   labels:
-    app.kubernetes.io/name: spoolman
+    app.kubernetes.io/name: manyfold
 spec:
   parentRefs:
     # HTTPS is terminated by a reverse proxy in front of this Gateway,
@@ -12,12 +12,13 @@ spec:
     - name: main-gateway
       namespace: traefik
   hostnames:
-    - spoolman.smee.ovh
+    - manyfold.smee.ovh
   rules:
     - matches:
         - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: spoolman
-          port: 8000
+        # Service created by the manyfold Helm chart (fullnameOverride: manyfold).
+        - name: manyfold
+          port: 3214

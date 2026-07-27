@@ -1,0 +1,96 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: manyfold
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: manyfold
+  sources:
+    # 1) The Manyfold app + bundled PostgreSQL and Valkey (Redis) subcharts.
+    - repoURL: https://charts.jeffresc.dev
+      chart: manyfold
+      targetRevision: 1.0.3
+      helm:
+        # Release name drives the templated service names below
+        # (manyfold-postgresql, manyfold-valkey-primary).
+        releaseName: manyfold
+        valuesObject:
+          # Pin the app Service name so the HTTPRoute backend is deterministic.
+          fullnameOverride: manyfold
+
+          # Bundled PostgreSQL (replaces the compose "postgres" service).
+          postgresql:
+            enabled: true
+            global:
+              postgresql:
+                auth:
+                  username: manyfold
+                  database: manyfold
+                  # CHANGE ME: committed to git in plaintext. For better hygiene,
+                  # move to a Secret and use auth.existingSecret instead.
+                  password: CHANGE_ME_db_password
+
+          # Bundled Valkey / Redis (replaces the compose "redis" service).
+          valkey:
+            enabled: true
+            architecture: standalone
+
+          # Persistent model library (mounted at /manyfold-library in-container).
+          persistence:
+            enabled: true
+            size: 20Gi
+            # storageClass: ""  # set to pin a StorageClass
+
+          env:
+            # CHANGE ME: generate with `openssl rand -hex 64`.
+            SECRET_KEY_BASE:
+              value: CHANGE_ME_long_random_string
+            # Run as uid/gid 1000, matching the compose PUID/PGID.
+            PUID:
+              value: "1000"
+            PGID:
+              value: "1000"
+
+            # --- Public URL: sits behind an HTTPS-terminating reverse proxy ---
+            # HTTPS_ONLY=enabled makes Manyfold trust the proxy's
+            # X-Forwarded-Proto and build https:// URLs (secure cookies, HSTS,
+            # and the OIDC callback below). The proxy MUST forward
+            # X-Forwarded-Proto: https or the app will redirect-loop.
+            PUBLIC_HOSTNAME:
+              value: manyfold.smee.ovh
+            HTTPS_ONLY:
+              value: enabled
+
+            # --- OIDC single sign-on via PocketID ---
+            # Multiuser mode is required for OIDC accounts.
+            MULTIUSER:
+              value: enabled
+            # PocketID issuer = the base URL of your PocketID instance.
+            # CHANGE ME to your real PocketID URL.
+            OIDC_ISSUER:
+              value: https://pocketid.smee.ovh
+            # CHANGE ME: from the OIDC client you create in PocketID.
+            OIDC_CLIENT_ID:
+              value: CHANGE_ME_oidc_client_id
+            OIDC_CLIENT_SECRET:
+              value: CHANGE_ME_oidc_client_secret
+            # Register this exact redirect/callback URL in the PocketID client:
+            #   https://manyfold.smee.ovh/users/auth/openid_connect/callback
+            # Requested scopes are fixed by Manyfold: openid, email, profile.
+
+    # 2) Gateway API HTTPRoute (HTTP only) from this repo.
+    - repoURL: https://github.com/BryanSmee-Projects/3dprinter-infra.git
+      targetRevision: main
+      path: apps/manyfold
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

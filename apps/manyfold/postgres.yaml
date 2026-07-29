@@ -82,4 +82,4 @@ spec:
         resources:
           requests:
             storage: 5Gi
-        # storageClassName: ""  # set to pin a StorageClass
+        storageClassName: "longhorn"

@@ -33,7 +33,7 @@ spec:
           persistence:
             enabled: true
             size: 20Gi
-            # storageClass: ""  # set to pin a StorageClass
+            storageClass: "longhorn"
 
           env:
             # --- Secrets (from the manyfold-secrets Secret / SealedSecret) ---

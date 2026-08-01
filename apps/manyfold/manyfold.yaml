@@ -1,0 +1,144 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: manyfold-library
+  namespace: manyfold
+  labels:
+    app.kubernetes.io/name: manyfold
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: "longhorn"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: manyfold
+  namespace: manyfold
+  labels:
+    app.kubernetes.io/name: manyfold
+spec:
+  selector:
+    app.kubernetes.io/name: manyfold
+  ports:
+    - name: http
+      port: 3214
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manyfold
+  namespace: manyfold
+  labels:
+    app.kubernetes.io/name: manyfold
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: manyfold
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: manyfold
+    spec:
+      # Avoid Kubernetes service-link env vars (e.g. MANYFOLD_POSTGRES_PORT).
+      enableServiceLinks: false
+      containers:
+        - name: manyfold
+          image: ghcr.io/manyfold3d/manyfold:0.147.1
+          ports:
+            - name: http
+              containerPort: 3214
+          env:
+            # --- Secrets (from the manyfold-secrets Secret / SealedSecret) ---
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: manyfold-secrets
+                  key: secret-key-base
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manyfold-secrets
+                  key: postgres-password
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: manyfold-secrets
+                  key: oidc-client-secret
+
+            # --- Database: plain PostgreSQL (postgres.yaml) ---
+            - name: DATABASE_ADAPTER
+              value: postgresql
+            - name: DATABASE_HOST
+              value: manyfold-postgres
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: DATABASE_USER
+              value: manyfold
+            - name: DATABASE_NAME
+              value: manyfold
+
+            # --- Cache/queue: plain Redis (redis.yaml) ---
+            - name: REDIS_URL
+              value: redis://manyfold-redis:6379/1
+
+            # Run as uid/gid 1000, matching the compose PUID/PGID.
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+
+            # --- Public URL: sits behind an HTTPS-terminating reverse proxy ---
+            # HTTPS_ONLY=enabled makes Manyfold trust the proxy's
+            # X-Forwarded-Proto and build https:// URLs (secure cookies, HSTS,
+            # and the OIDC callback below). The proxy MUST forward
+            # X-Forwarded-Proto: https or the app will redirect-loop.
+            - name: PUBLIC_HOSTNAME
+              value: manyfold.smee.ovh
+            - name: HTTPS_ONLY
+              value: enabled
+
+            # --- OIDC single sign-on via PocketID ---
+            # Multiuser mode is required for OIDC accounts.
+            - name: MULTIUSER
+              value: enabled
+            # PocketID issuer = the base URL of your PocketID instance.
+            - name: OIDC_ISSUER
+              value: https://pocketid.smee.ovh
+            # Client ID is not secret; the client SECRET comes from the Secret above.
+            # CHANGE ME to the client ID from PocketID.
+            - name: OIDC_CLIENT_ID
+              value: CHANGE_ME_oidc_client_id
+            # Register this exact redirect/callback URL in the PocketID client:
+            #   https://manyfold.smee.ovh/users/auth/openid_connect/callback
+            # Requested scopes are fixed by Manyfold: openid, email, profile.
+          volumeMounts:
+            - name: library
+              mountPath: /manyfold-library
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: library
+          persistentVolumeClaim:
+            claimName: manyfold-library

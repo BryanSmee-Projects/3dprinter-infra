@@ -19,6 +19,6 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        # Service created by the manyfold Helm chart (fullnameOverride: manyfold).
+        # Service defined in manyfold.yaml.
         - name: manyfold
           port: 3214

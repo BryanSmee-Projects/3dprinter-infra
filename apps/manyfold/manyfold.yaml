@@ -128,11 +128,11 @@ spec:
               value: enabled
             # PocketID issuer = the base URL of your PocketID instance.
             - name: OIDC_ISSUER
-              value: https://pocketid.smee.ovh
+              value: https://auth.smee.ovh
             # Client ID is not secret; the client SECRET comes from the Secret above.
             # CHANGE ME to the client ID from PocketID.
             - name: OIDC_CLIENT_ID
-              value: CHANGE_ME_oidc_client_id
+              value: 68b817cb-11a9-4b14-a9d9-b93996e0aa46
             # Register this exact redirect/callback URL in the PocketID client:
             #   https://manyfold.smee.ovh/users/auth/openid_connect/callback
             # Requested scopes are fixed by Manyfold: openid, email, profile.

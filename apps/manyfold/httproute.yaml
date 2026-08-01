@@ -9,7 +9,12 @@ spec:
   parentRefs:
     # HTTPS is terminated by a reverse proxy in front of this Gateway,
     # so traffic reaching it is plain HTTP.
-    - name: main-gateway
+    # group/kind spelled out explicitly to match the Gateway API defaulting
+    # webhook's output — otherwise ArgoCD sees permanent drift against the
+    # live object, which has these filled in.
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: main-gateway
       namespace: traefik
   hostnames:
     - manyfold.smee.ovh
@@ -19,6 +24,10 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        # Service defined in manyfold.yaml.
-        - name: manyfold
+        # Service defined in manyfold.yaml. group/kind/weight spelled out for
+        # the same reason as parentRefs above.
+        - group: ""
+          kind: Service
+          name: manyfold
           port: 3214
+          weight: 1

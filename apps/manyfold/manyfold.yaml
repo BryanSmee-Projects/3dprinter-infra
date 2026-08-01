@@ -47,6 +47,25 @@ spec:
     spec:
       # Avoid Kubernetes service-link env vars (e.g. MANYFOLD_POSTGRES_PORT).
       enableServiceLinks: false
+      # The container's entrypoint runs as root, chowns tmp/log/plugins, then
+      # drops to PUID:PGID (1000:1000) before starting Rails — but it never
+      # chowns the library volume itself, so the PVC mounts as root:root and
+      # uid 1000 gets "path is not writable" from Manyfold's library path
+      # validator. Fix ownership once via initContainer rather than pod-wide
+      # fsGroup, which forces a recursive chown of the whole volume on every
+      # pod start — expensive for a large model library. Skip the recursive
+      # chown if the root of the mount is already owned correctly.
+      initContainers:
+        - name: fix-library-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              [ "$(stat -c %u:%g /manyfold-library)" = "1000:1000" ] || chown -R 1000:1000 /manyfold-library
+          volumeMounts:
+            - name: library
+              mountPath: /manyfold-library
       containers:
         - name: manyfold
           image: ghcr.io/manyfold3d/manyfold:0.147.1

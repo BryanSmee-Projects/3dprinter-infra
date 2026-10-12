@@ -19,6 +19,17 @@ spec:
     repoURL: https://github.com/BryanSmee-Projects/3dprinter-infra.git
     targetRevision: main
     path: apps/manyfold
+  # Kubernetes injects a status field into the StatefulSet's embedded PVC
+  # template on the live object (spec.volumeClaimTemplates[].status), which
+  # git can never match since it's server-set, not spec — a known
+  # StatefulSet/ArgoCD quirk. Ignore it so the app doesn't sit permanently
+  # OutOfSync.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: manyfold-postgres
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[].status
   syncPolicy:
     automated:
       prune: true
